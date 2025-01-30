@@ -40,9 +40,10 @@ public class ContainerManager {
         byte[] salt;
         // Read existing salt if container exists
         if (Files.exists(Paths.get(containerPath))) {
-            try (InputStream is = new FileInputStream(containerPath)) {
+            try (InputStream is = new FileInputStream(containerPath);
+                 DataInputStream dis = new DataInputStream(is)) { // Use DataInputStream
                 salt = new byte[EncryptionUtil.SALT_LENGTH];
-                is.read(salt);
+                dis.readFully(salt);
             }
         } else {
             salt = EncryptionUtil.generateSalt();

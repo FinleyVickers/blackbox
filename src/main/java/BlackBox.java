@@ -1,7 +1,6 @@
 // BlackBox.java
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.*;
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
@@ -19,7 +18,7 @@ public class BlackBox {
             System.err.println("GTK look and feel not available");
         }
 
-        SwingUtilities.invokeLater(() -> createAndShowMainUI());
+        SwingUtilities.invokeLater(BlackBox::createAndShowMainUI);
     }
 
     private static void createAndShowMainUI() {
@@ -158,7 +157,7 @@ public class BlackBox {
 
         DefaultListModel<String> listModel = new DefaultListModel<>();
         for (StoredFile file : files.values()) {
-            listModel.addElement(file.getName() + " (" + file.getType() + ")");
+            listModel.addElement(file.name() + " (" + file.type() + ")");
         }
 
         JList<String> fileList = new JList<>(listModel);
@@ -175,7 +174,7 @@ public class BlackBox {
         }
 
         String[] options = fileList.stream()
-                .map(f -> f.getName() + " (" + f.getType() + ")")
+                .map(f -> f.name() + " (" + f.type() + ")")
                 .toArray(String[]::new);
 
         String selection = (String) JOptionPane.showInputDialog(
@@ -188,10 +187,10 @@ public class BlackBox {
 
         JFileChooser chooser = new JFileChooser();
         chooser.setDialogTitle("Select save location");
-        chooser.setSelectedFile(new File(fileList.get(index).getName()));
+        chooser.setSelectedFile(new File(fileList.get(index).name()));
         if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
             try {
-                Files.write(chooser.getSelectedFile().toPath(), fileList.get(index).getContent());
+                Files.write(chooser.getSelectedFile().toPath(), fileList.get(index).content());
                 JOptionPane.showMessageDialog(null, "File extracted successfully!");
             } catch (Exception ex) {
                 JOptionPane.showMessageDialog(null, "Error: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);

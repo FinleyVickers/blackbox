@@ -4,12 +4,9 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.zip.*;
 
-public class StoredFile implements Serializable {
+public record StoredFile(String name, String type, byte[] content) implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
-    private final String name;
-    private final String type;
-    private final byte[] content;
 
     public StoredFile(String name, String type, byte[] content) {
         this.name = name;
@@ -17,10 +14,8 @@ public class StoredFile implements Serializable {
         this.content = compress(content);
     }
 
-    // Add back the missing getters
-    public String getName() { return name; }
-    public String getType() { return type; }
-    public byte[] getContent() {
+    @Override
+    public byte[] content() {
         return decompress(content);
     }
 
