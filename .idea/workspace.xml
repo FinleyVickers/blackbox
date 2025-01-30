@@ -5,10 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2c8343a7-1c66-4d3d-9048-f3c7834a067c" name="Changes" comment="Added LICENCE">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/BlackBox.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/BlackBox.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/ContainerManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ContainerManager.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/StoredFile.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/StoredFile.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

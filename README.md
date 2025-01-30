@@ -1,8 +1,9 @@
 # BlackBox 🔒
 
-A secure command-line application for creating encrypted file containers to protect your sensitive data using AES-256 encryption.
+A secure desktop application with GTK-based GUI for creating encrypted file containers to protect your sensitive data using AES-256 encryption.
 
 ![Java](https://img.shields.io/badge/Java-17%2B-blue?logo=openjdk)
+![GUI](https://img.shields.io/badge/Interface-GTK--Styled-green?logo=gtk)
 
 ## Features ✨
 - **Military-Grade Encryption**: AES-256-CBC with PBKDF2 key derivation.
@@ -12,34 +13,52 @@ A secure command-line application for creating encrypted file containers to prot
 - **Batch Operations**: Add or extract multiple files at once.
 
 ## Installation 🛠️
-1. **Requirement**: Java 17 or later.
-2. **Compile the Project**:
+1. **Requirements**:
+   - Java 17 or later
+   - GUI environment (GTK look-and-feel preferred)
+
+2. **Command-line setup**:
    ```bash
-   javac *.java
+   # Navigate to project root directory
+   cd path/to/blackbox-project
+
+   # Compile from source
+   javac src/main/java/*.java -d out/
+
+   # Run the application
+   java -cp out/ BlackBox
    ```
-3. **Run the Program**:
-   ```bash
-   java BlackBox
-   ```
+
+3. **IntelliJ IDEA (Recommended for Development)**:
+   1. Open IntelliJ and select "Open Project"
+   2. Navigate to the `src/main/java` directory
+   3. Configure SDK:
+      - File > Project Structure > Project SDK: Java 17+
+   4. Create run configuration:
+      - Main class: `BlackBox`
+      - Working directory: Project root
+   5. Build and run using green arrow (▶️) in toolbar
 
 ## Usage 📖
 
 ### 1. Create a New Container
-1. Select `1. Create new container` from the main menu.
-2. Choose a save location and set a strong password.
-3. Your encrypted container file (e.g., `my_vault.dat`) will be created.
+1. Click "Create New Container" in the main window.
+2. Choose a save location via the file dialog.
+3. Enter a strong password when prompted.
+4. Your encrypted container file (e.g., `my_vault.dat`) will be created.
 
 ### 2. Add Files to Container
-1. Open your container using `2. Open existing container`.
-2. Choose `1. Add files` and select files via the file dialog.
-3. Files are encrypted and stored immediately.
+1. Open your container using "Open Existing Container".
+2. Click "Add Files" and select files through the multi-file dialog.
+3. Files are encrypted and stored immediately upon selection.
 
 ### 3. Extract Files
-1. In the container menu, select `3. Extract file`.
-2. Choose a file from the list and specify a save location.
+1. Click "Extract File" in the container management window.
+2. Select a file from the displayed list.
+3. Choose a save location through the file dialog.
 
 ### 4. Save and Exit
-Use `4. Save and close` to securely write changes to the container.
+Use "Save and Close" to securely write changes and exit the container session.
 
 ## Technical Details 🔍
 - **Encryption**: AES-256 in CBC mode with PKCS5 padding.
@@ -52,10 +71,29 @@ Use `4. Save and close` to securely write changes to the container.
 - 🔒 **Container Integrity**: Tampering with the container file will corrupt all data.
 - 🛡️ **Best Practices**: Use this for personal files only. Avoid storing highly sensitive data without additional safeguards.
 
+## Development Notes 💻
+- **Project Structure**:
+  ```
+  blackbox-project/
+  └── src/
+      └── main/
+          └── java/
+              ├── BlackBox.java
+              ├── ContainerManager.java
+              ├── EncryptionUtil.java
+              └── StoredFile.java
+  ```
+- **Recommended IDE**: IntelliJ IDEA with built-in Java support
+- **Dependencies**: No external libraries required (pure Java implementation)
+- **Testing**: Run directly from IDE for debug console access
+
 ## Limitations ⚠️
-- Requires a GUI environment for file selection dialogs.
+- Requires proper source directory setup for command-line compilation
+- IntelliJ automatically handles classpath - manual setup needed for CLI execution
+- Requires a GUI environment (GTK look and feel preferred for best experience).
 - Maximum file size limited by available memory.
 - Not designed for concurrent access.
+- Fallback to system theme if GTK is unavailable.
 
 ## License 📜
 Distributed under the MIT License. See `LICENSE` file for details.
