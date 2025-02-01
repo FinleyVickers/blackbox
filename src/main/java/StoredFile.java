@@ -1,47 +1,91 @@
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.Serial;
-import java.io.Serializable;
+import java.io.*;
+import java.nio.file.*;
 import java.util.zip.*;
+import java.util.function.Consumer;
 
-public record StoredFile(String name, String type, byte[] content) implements Serializable {
-    @Serial
+public class StoredFile implements Serializable {
     private static final long serialVersionUID = 1L;
+    private final String name;
+    private final String type;
+    private transient Path tempFile;  // Stores compressed data in temp file
 
-    public StoredFile(String name, String type, byte[] content) {
+    public StoredFile(String name, String type, Path sourceFile, Consumer<Integer> progress)
+            throws IOException {
         this.name = name;
         this.type = type;
-        this.content = compress(content);
+        this.tempFile = compressToTemp(sourceFile, progress);
     }
 
-    @Override
-    public byte[] content() {
-        return decompress(content);
+    private Path compressToTemp(Path source, Consumer<Integer> progress) throws IOException {
+        Path temp = Files.createTempFile("blackbox_", ".tmp");
+        long fileSize = Files.size(source);
+
+        try (InputStream in = Files.newInputStream(source);
+             OutputStream out = Files.newOutputStream(temp);
+             GZIPOutputStream gzipOut = new GZIPOutputStream(out)) {
+
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+            long totalRead = 0;
+
+            while ((bytesRead = in.read(buffer)) != -1) {
+                gzipOut.write(buffer, 0, bytesRead);
+                totalRead += bytesRead;
+                int progressPercent = (int) ((totalRead * 100) / fileSize);
+                progress.accept(progressPercent);
+            }
+        }
+        return temp;
     }
 
-    private static byte[] compress(byte[] data) {
-        try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
-             GZIPOutputStream gzip = new GZIPOutputStream(bos)) {
-            gzip.write(data);
-            gzip.finish();
-            return bos.toByteArray();
-        } catch (Exception e) {
-            throw new RuntimeException("Compression failed", e);
+    public InputStream getContentStream() throws IOException {
+        return new GZIPInputStream(Files.newInputStream(tempFile));
+    }
+
+    public long getTempFileSize() throws IOException {
+        return Files.size(tempFile);
+    }
+
+    // Serialization handling
+    private void writeObject(ObjectOutputStream out) throws IOException {
+        out.defaultWriteObject();
+        try (InputStream in = Files.newInputStream(tempFile)) {
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+            while ((bytesRead = in.read(buffer)) != -1) {
+                out.write(buffer, 0, bytesRead);
+            }
         }
     }
 
-    private static byte[] decompress(byte[] compressed) {
-        try (ByteArrayInputStream bis = new ByteArrayInputStream(compressed);
-             GZIPInputStream gzip = new GZIPInputStream(bis);
-             ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
-            byte[] buffer = new byte[1024];
-            int len;
-            while ((len = gzip.read(buffer)) > 0) {
-                bos.write(buffer, 0, len);
+    private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
+        in.defaultReadObject();
+        this.tempFile = Files.createTempFile("blackbox_", ".tmp");
+        try (OutputStream out = Files.newOutputStream(tempFile)) {
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+            while ((bytesRead = in.read(buffer)) != -1) {
+                out.write(buffer, 0, bytesRead);
             }
-            return bos.toByteArray();
-        } catch (Exception e) {
-            throw new RuntimeException("Decompression failed", e);
+        }
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    @Override
+    protected void finalize() throws Throwable {
+        try {
+            if (tempFile != null) {
+                Files.deleteIfExists(tempFile);
+            }
+        } finally {
+            super.finalize();
         }
     }
 }

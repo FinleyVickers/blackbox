@@ -1,6 +1,4 @@
-import javax.crypto.Cipher;
-import javax.crypto.SecretKey;
-import javax.crypto.SecretKeyFactory;
+import javax.crypto.*;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
@@ -8,13 +6,11 @@ import java.security.SecureRandom;
 import java.security.spec.KeySpec;
 
 public class EncryptionUtil {
-    // Make constants public
     public static final int SALT_LENGTH = 16;
     public static final int IV_LENGTH = 16;
     private static final int KEY_LENGTH = 256;
     private static final int ITERATIONS = 65536;
 
-    // Rest of the class remains unchanged
     public static byte[] generateSalt() {
         SecureRandom random = new SecureRandom();
         byte[] salt = new byte[SALT_LENGTH];
@@ -36,15 +32,15 @@ public class EncryptionUtil {
         return new SecretKeySpec(tmp.getEncoded(), "AES");
     }
 
-    public static byte[] encrypt(byte[] data, SecretKey key, byte[] iv) throws Exception {
+    public static Cipher getEncryptCipher(SecretKey key, byte[] iv) throws Exception {
         Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
         cipher.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(iv));
-        return cipher.doFinal(data);
+        return cipher;
     }
 
-    public static byte[] decrypt(byte[] encryptedData, SecretKey key, byte[] iv) throws Exception {
+    public static Cipher getDecryptCipher(SecretKey key, byte[] iv) throws Exception {
         Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
         cipher.init(Cipher.DECRYPT_MODE, key, new IvParameterSpec(iv));
-        return cipher.doFinal(encryptedData);
+        return cipher;
     }
 }

@@ -4,8 +4,12 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="2c8343a7-1c66-4d3d-9048-f3c7834a067c" name="Changes" comment="Rewrote README.md to new GUI">
+    <list default="true" id="2c8343a7-1c66-4d3d-9048-f3c7834a067c" name="Changes" comment="Fixing null save bug, added &quot;progress&quot; bar (still wip).">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/BlackBox.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/BlackBox.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/ContainerManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/ContainerManager.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/EncryptionUtil.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/EncryptionUtil.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/StoredFile.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/StoredFile.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -37,6 +41,9 @@
     &quot;accountId&quot;: &quot;919c32da-6dff-47ea-8e64-c8942ee0b924&quot;
   }
 }</component>
+  <component name="ProblemsViewState">
+    <option name="selectedTabId" value="CurrentFile" />
+  </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 7
 }</component>
@@ -134,7 +141,15 @@
       <option name="project" value="LOCAL" />
       <updated>1738266195903</updated>
     </task>
-    <option name="localTasksCounter" value="8" />
+    <task id="LOCAL-00008" summary="Updated StoredFile to a record class, fixed seed reading for already created containers in ContainerManager, and some syntax changes in BlackBox.">
+      <option name="closed" value="true" />
+      <created>1738266789367</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1738266789367</updated>
+    </task>
+    <option name="localTasksCounter" value="9" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -146,6 +161,8 @@
     <MESSAGE value="Updated README.md" />
     <MESSAGE value="Added LICENCE" />
     <MESSAGE value="Rewrote README.md to new GUI" />
-    <option name="LAST_COMMIT_MESSAGE" value="Rewrote README.md to new GUI" />
+    <MESSAGE value="Updated StoredFile to a record class, fixed seed reading for already created containers in ContainerManager, and some syntax changes in BlackBox." />
+    <MESSAGE value="Fixing null save bug, added &quot;progress&quot; bar (still wip)." />
+    <option name="LAST_COMMIT_MESSAGE" value="Fixing null save bug, added &quot;progress&quot; bar (still wip)." />
   </component>
 </project>

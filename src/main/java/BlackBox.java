@@ -1,15 +1,16 @@
-// BlackBox.java
 import javax.swing.*;
 import java.awt.*;
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
 import java.util.List;
+import java.util.function.Consumer;
 
 public class BlackBox {
     private static Map<String, StoredFile> files = new HashMap<>();
     private static String containerPath;
     private static String password;
+    private static JFrame activeContainerFrame; // Track the active container window
 
     public static void main(String[] args) {
         try {
@@ -58,6 +59,9 @@ public class BlackBox {
             files = new HashMap<>();
             JOptionPane.showMessageDialog(null, "Container created successfully!");
             showContainerUI();
+        } else {
+            JOptionPane.showMessageDialog(null, "Container creation canceled.", "Error", JOptionPane.ERROR_MESSAGE);
+            containerPath = null; // Reset path if password was canceled
         }
     }
 
@@ -70,13 +74,17 @@ public class BlackBox {
         password = getPasswordFromDialog("Enter password:");
 
         if (password != null) {
-            try {
-                files = ContainerManager.loadContainer(containerPath, password);
-                JOptionPane.showMessageDialog(null, "Container unlocked successfully!");
-                showContainerUI();
-            } catch (Exception ex) {
-                JOptionPane.showMessageDialog(null, "Error: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-            }
+            showLoading(progress -> {
+                try {
+                    files = ContainerManager.loadContainer(containerPath, password);
+                    SwingUtilities.invokeLater(() -> {
+                        JOptionPane.showMessageDialog(null, "Container unlocked successfully!");
+                        showContainerUI();
+                    });
+                } catch (Exception ex) {
+                    throw new RuntimeException(ex.getMessage());
+                }
+            }, "Decrypting container...");
         }
     }
 
@@ -98,9 +106,14 @@ public class BlackBox {
     }
 
     private static void showContainerUI() {
-        JFrame containerFrame = new JFrame("Container Management");
-        containerFrame.setSize(500, 300);
-        containerFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        // Close existing container window if open
+        if (activeContainerFrame != null) {
+            activeContainerFrame.dispose();
+        }
+
+        activeContainerFrame = new JFrame("Container Management");
+        activeContainerFrame.setSize(500, 300);
+        activeContainerFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
         JPanel panel = new JPanel(new GridLayout(4, 1, 10, 10));
         panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
@@ -113,19 +126,16 @@ public class BlackBox {
         addBtn.addActionListener(e -> addFiles());
         listBtn.addActionListener(e -> listFiles());
         extractBtn.addActionListener(e -> extractFile());
-        saveBtn.addActionListener(e -> {
-            saveAndClose();
-            containerFrame.dispose();
-        });
+        saveBtn.addActionListener(e -> saveAndClose(activeContainerFrame));
 
         panel.add(addBtn);
         panel.add(listBtn);
         panel.add(extractBtn);
         panel.add(saveBtn);
 
-        containerFrame.add(panel);
-        containerFrame.setLocationRelativeTo(null);
-        containerFrame.setVisible(true);
+        activeContainerFrame.add(panel);
+        activeContainerFrame.setLocationRelativeTo(null);
+        activeContainerFrame.setVisible(true);
     }
 
     private static void addFiles() {
@@ -134,21 +144,31 @@ public class BlackBox {
         chooser.setDialogTitle("Select files to encrypt");
         if (chooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return;
 
-        for (File file : chooser.getSelectedFiles()) {
-            try {
-                Path path = file.toPath();
-                String fileName = path.getFileName().toString();
-                String fileType = Files.probeContentType(path) != null ?
-                        Files.probeContentType(path) : "unknown";
-                byte[] content = Files.readAllBytes(path);
+        File[] selectedFiles = chooser.getSelectedFiles();
+        showLoading(progress -> {
+            for (int i = 0; i < selectedFiles.length; i++) {
+                File file = selectedFiles[i];
+                try {
+                    Path path = file.toPath();
 
-                files.put(fileName, new StoredFile(fileName, fileType, content));
-                JOptionPane.showMessageDialog(null, "Added: " + fileName);
-            } catch (Exception e) {
-                JOptionPane.showMessageDialog(null, "Error adding " + file.getName(), "Error", JOptionPane.ERROR_MESSAGE);
+                    int finalI = i;
+                    files.put(
+                            path.getFileName().toString(),
+                            new StoredFile(
+                                    path.getFileName().toString(),
+                                    Files.probeContentType(path) != null ?
+                                            Files.probeContentType(path) : "unknown",
+                                    path,
+                                    p -> progress.accept((finalI * 100 + p) / selectedFiles.length)
+                            )
+                    );
+
+                    ContainerManager.saveContainer(containerPath, password, files);
+                } catch (Exception e) {
+                    throw new RuntimeException("Error adding file: " + e.getMessage());
+                }
             }
-        }
-        saveContainer();
+        }, "Encrypting files...");
     }
 
     private static void listFiles() {
@@ -157,7 +177,7 @@ public class BlackBox {
 
         DefaultListModel<String> listModel = new DefaultListModel<>();
         for (StoredFile file : files.values()) {
-            listModel.addElement(file.name() + " (" + file.type() + ")");
+            listModel.addElement(file.getName() + " (" + file.getType() + ")");
         }
 
         JList<String> fileList = new JList<>(listModel);
@@ -174,7 +194,7 @@ public class BlackBox {
         }
 
         String[] options = fileList.stream()
-                .map(f -> f.name() + " (" + f.type() + ")")
+                .map(f -> f.getName() + " (" + f.getType() + ")")
                 .toArray(String[]::new);
 
         String selection = (String) JOptionPane.showInputDialog(
@@ -187,30 +207,114 @@ public class BlackBox {
 
         JFileChooser chooser = new JFileChooser();
         chooser.setDialogTitle("Select save location");
-        chooser.setSelectedFile(new File(fileList.get(index).name()));
+        chooser.setSelectedFile(new File(fileList.get(index).getName()));
         if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
+            showLoading(progress -> {
+                try (InputStream in = fileList.get(index).getContentStream();
+                     OutputStream out = Files.newOutputStream(chooser.getSelectedFile().toPath())) {
+
+                    long fileSize = fileList.get(index).getTempFileSize();
+                    byte[] buffer = new byte[8192];
+                    int bytesRead;
+                    long totalRead = 0;
+
+                    while ((bytesRead = in.read(buffer)) != -1) {
+                        out.write(buffer, 0, bytesRead);
+                        totalRead += bytesRead;
+                        int progressPercent = (int) ((totalRead * 100) / fileSize);
+                        progress.accept(progressPercent);
+                    }
+                } catch (IOException ex) {
+                    throw new RuntimeException("Extraction failed: " + ex.getMessage());
+                }
+            }, "Extracting file...");
+        }
+    }
+
+    private static void saveAndClose(JFrame containerFrame) {
+        showLoading(progress -> {
             try {
-                Files.write(chooser.getSelectedFile().toPath(), fileList.get(index).content());
-                JOptionPane.showMessageDialog(null, "File extracted successfully!");
+                // Detailed null checks
+                if (containerPath == null) {
+                    throw new IllegalStateException("Container path is null. Create or open a container first.");
+                }
+                if (password == null) {
+                    throw new IllegalStateException("Password is null. Authentication failed.");
+                }
+
+                ContainerManager.saveContainer(containerPath, password, files);
+                SwingUtilities.invokeLater(() -> {
+                    files.clear();
+                    containerPath = null;
+                    password = null;
+                    containerFrame.dispose(); // Close the window
+                });
             } catch (Exception ex) {
-                JOptionPane.showMessageDialog(null, "Error: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                throw new RuntimeException("Save failed: " + ex.getMessage(), ex);
             }
-        }
+        }, "Saving container...");
     }
 
-    private static void saveAndClose() {
-        saveContainer();
-        files.clear();
-        containerPath = null;
-        password = null;
+    private static JDialog createLoadingDialog(String message) {
+        JDialog dialog = new JDialog((Frame) null, "Processing", true);
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        JLabel label = new JLabel(message);
+        JProgressBar progressBar = new JProgressBar(0, 100);
+        progressBar.setStringPainted(true); // Show percentage text
+
+        panel.add(label, BorderLayout.NORTH);
+        panel.add(progressBar, BorderLayout.CENTER);
+        dialog.add(panel);
+        dialog.setSize(300, 100);
+        dialog.setLocationRelativeTo(null);
+        return dialog;
     }
 
-    private static void saveContainer() {
-        try {
-            ContainerManager.saveContainer(containerPath, password, files);
-            JOptionPane.showMessageDialog(null, "Container saved successfully!");
-        } catch (Exception ex) {
-            JOptionPane.showMessageDialog(null, "Error saving: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-        }
+    private static void showLoading(ProgressTask task, String message) {
+        JDialog loadingDialog = createLoadingDialog(message);
+        JProgressBar progressBar = (JProgressBar)
+                ((JPanel) loadingDialog.getContentPane().getComponent(0)).getComponent(1);
+
+        new SwingWorker<Void, Integer>() {
+            @Override
+            protected Void doInBackground() throws Exception {
+                task.run(this::publish);
+                return null;
+            }
+
+            @Override
+            protected void process(List<Integer> chunks) {
+                int latestProgress = chunks.get(chunks.size() - 1);
+                progressBar.setValue(latestProgress);
+            }
+
+            @Override
+            protected void done() {
+                loadingDialog.dispose();
+                try {
+                    get(); // Check for exceptions
+                } catch (Exception e) {
+                    String errorMessage = "Operation failed: ";
+                    if (e.getCause() != null) {
+                        errorMessage += e.getCause().getMessage();
+                    } else {
+                        errorMessage += e.getMessage();
+                    }
+
+                    JOptionPane.showMessageDialog(null,
+                            errorMessage,
+                            "Error",
+                            JOptionPane.ERROR_MESSAGE
+                    );
+                }
+            }
+        }.execute();
+        loadingDialog.setVisible(true);
+    }
+
+    interface ProgressTask {
+        void run(Consumer<Integer> progressCallback) throws Exception;
     }
 }
