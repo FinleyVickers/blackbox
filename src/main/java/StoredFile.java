@@ -3,7 +3,7 @@ import java.nio.file.*;
 import java.util.zip.*;
 import java.util.function.Consumer;
 
-public class StoredFile implements Serializable {
+public class StoredFile implements Serializable, AutoCloseable {
     private static final long serialVersionUID = 1L;
     private final String name;
     private final String type;
@@ -79,13 +79,10 @@ public class StoredFile implements Serializable {
     }
 
     @Override
-    protected void finalize() throws Throwable {
-        try {
-            if (tempFile != null) {
-                Files.deleteIfExists(tempFile);
-            }
-        } finally {
-            super.finalize();
+    public void close() throws IOException {
+        if (tempFile != null) {
+            Files.deleteIfExists(tempFile);
+            tempFile = null;
         }
     }
 }

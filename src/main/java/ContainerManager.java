@@ -1,5 +1,4 @@
 import javax.crypto.*;
-import javax.crypto.spec.IvParameterSpec;
 import java.io.*;
 import java.nio.file.*;
 import java.util.Map;
@@ -44,6 +43,7 @@ public class ContainerManager {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public static Map<String, StoredFile> loadContainer(String containerPath, String password) throws Exception {
         try (InputStream is = new FileInputStream(containerPath)) {
             byte[] salt = new byte[EncryptionUtil.SALT_LENGTH];
@@ -58,7 +58,20 @@ public class ContainerManager {
             try (CipherInputStream cis = new CipherInputStream(is, cipher);
                  ObjectInputStream ois = new ObjectInputStream(cis)) {
 
-                return (Map<String, StoredFile>) ois.readObject();
+                Object obj = ois.readObject();
+                if (!(obj instanceof Map)) {
+                    throw new ClassCastException("Container file format is invalid");
+                }
+                
+                Map<?, ?> map = (Map<?, ?>) obj;
+                // Verify the types of the key-value pairs
+                for (Map.Entry<?, ?> entry : map.entrySet()) {
+                    if (!(entry.getKey() instanceof String) || !(entry.getValue() instanceof StoredFile)) {
+                        throw new ClassCastException("Container file contains invalid data types");
+                    }
+                }
+                
+                return (Map<String, StoredFile>) obj;
             }
         }
     }

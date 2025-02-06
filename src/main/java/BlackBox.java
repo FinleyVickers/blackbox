@@ -13,13 +13,16 @@ public class BlackBox {
     private static JFrame activeContainerFrame; // Track the active container window
 
     public static void main(String[] args) {
-        try {
-            UIManager.setLookAndFeel("com.sun.java.swing.plaf.gtk.GTKLookAndFeel");
-        } catch (Exception e) {
-            System.err.println("GTK look and feel not available");
-        }
-
+        setupLookAndFeel();
         SwingUtilities.invokeLater(BlackBox::createAndShowMainUI);
+    }
+
+    private static void setupLookAndFeel() {
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception e) {
+            System.err.println("Could not set look and feel: " + e.getMessage());
+        }
     }
 
     private static void createAndShowMainUI() {
@@ -30,6 +33,7 @@ public class BlackBox {
         JPanel panel = new JPanel(new GridLayout(3, 1, 10, 10));
         panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
+        // Create buttons with hover effect
         JButton createBtn = new JButton("Create New Container");
         JButton openBtn = new JButton("Open Existing Container");
         JButton exitBtn = new JButton("Exit");
@@ -181,7 +185,10 @@ public class BlackBox {
         }
 
         JList<String> fileList = new JList<>(listModel);
-        listFrame.add(new JScrollPane(fileList));
+        
+        JScrollPane scrollPane = new JScrollPane(fileList);
+        
+        listFrame.add(scrollPane);
         listFrame.setLocationRelativeTo(null);
         listFrame.setVisible(true);
     }
@@ -257,12 +264,13 @@ public class BlackBox {
 
     private static JDialog createLoadingDialog(String message) {
         JDialog dialog = new JDialog((Frame) null, "Processing", true);
+        
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
         JLabel label = new JLabel(message);
         JProgressBar progressBar = new JProgressBar(0, 100);
-        progressBar.setStringPainted(true); // Show percentage text
+        progressBar.setStringPainted(true);
 
         panel.add(label, BorderLayout.NORTH);
         panel.add(progressBar, BorderLayout.CENTER);
