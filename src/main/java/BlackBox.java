@@ -266,29 +266,133 @@ public class BlackBox {
         }
     }
 
+    private static class LoadingDialogComponents {
+        final JDialog dialog;
+        final EncryptionVisualizer visualizer;
+        final JProgressBar progressBar;
+
+        LoadingDialogComponents(JDialog dialog, EncryptionVisualizer visualizer, JProgressBar progressBar) {
+            this.dialog = dialog;
+            this.visualizer = visualizer;
+            this.progressBar = progressBar;
+        }
+    }
+
+    private static LoadingDialogComponents createLoadingDialog(String message, boolean showAnimation) {
+        JDialog dialog = new JDialog((Frame) null, "Processing", true);
+        dialog.setLayout(new BorderLayout(10, 10));
+        dialog.getContentPane().setBackground(Color.BLACK);
+        
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        panel.setBackground(Color.BLACK);
+
+        JLabel label = new JLabel(message);
+        label.setForeground(Color.WHITE);
+        label.setHorizontalAlignment(SwingConstants.CENTER);
+        
+        JProgressBar progressBar = new JProgressBar(0, 100);
+        progressBar.setStringPainted(true);
+        progressBar.setBackground(Color.BLACK);
+        progressBar.setForeground(Color.GREEN);
+
+        EncryptionVisualizer visualizer = null;
+        if (showAnimation) {
+            visualizer = new EncryptionVisualizer();
+            panel.add(visualizer, BorderLayout.CENTER);
+        }
+        
+        panel.add(label, BorderLayout.NORTH);
+        panel.add(progressBar, BorderLayout.SOUTH);
+        
+        dialog.add(panel);
+        
+        if (!showAnimation) {
+            // Make the dialog smaller when no animation is shown
+            dialog.setSize(300, 120);
+        } else {
+            dialog.pack();
+        }
+        
+        dialog.setLocationRelativeTo(null);
+        
+        return new LoadingDialogComponents(dialog, visualizer, progressBar);
+    }
+
+    private static LoadingDialogComponents createLoadingDialog(String message) {
+        return createLoadingDialog(message, false);
+    }
+
     private static void handleDroppedFiles(File[] droppedFiles) {
-        showLoading(progress -> {
-            for (int i = 0; i < droppedFiles.length; i++) {
-                File file = droppedFiles[i];
+        LoadingDialogComponents dialogComponents = createLoadingDialog("Encrypting files...", true);
+        
+        new SwingWorker<Void, Integer>() {
+            private String currentFile = "";
+
+            @Override
+            protected Void doInBackground() throws Exception {
+                for (int i = 0; i < droppedFiles.length; i++) {
+                    File file = droppedFiles[i];
+                    currentFile = file.getName();
+                    SwingUtilities.invokeLater(() -> {
+                        dialogComponents.visualizer.startAnimation(currentFile);
+                    });
+                    
+                    try {
+                        Path path = file.toPath();
+                        int finalI = i;
+                        files.put(
+                                path.getFileName().toString(),
+                                new StoredFile(
+                                        path.getFileName().toString(),
+                                        Files.probeContentType(path) != null ?
+                                                Files.probeContentType(path) : "unknown",
+                                        path,
+                                        p -> {
+                                            int totalProgress = (finalI * 100 + p) / droppedFiles.length;
+                                            publish(totalProgress);
+                                            SwingUtilities.invokeLater(() -> dialogComponents.visualizer.updateProgress(p));
+                                        }
+                                )
+                        );
+                        ContainerManager.saveContainer(containerPath, password, files);
+                    } catch (Exception e) {
+                        throw new RuntimeException("Error adding file: " + e.getMessage());
+                    }
+                }
+                return null;
+            }
+
+            @Override
+            protected void process(List<Integer> chunks) {
+                int latestProgress = chunks.get(chunks.size() - 1);
+                dialogComponents.progressBar.setValue(latestProgress);
+            }
+
+            @Override
+            protected void done() {
+                if (dialogComponents.visualizer != null) {
+                    dialogComponents.visualizer.stopAnimation();
+                }
+                dialogComponents.dialog.dispose();
                 try {
-                    Path path = file.toPath();
-                    int finalI = i;
-                    files.put(
-                            path.getFileName().toString(),
-                            new StoredFile(
-                                    path.getFileName().toString(),
-                                    Files.probeContentType(path) != null ?
-                                            Files.probeContentType(path) : "unknown",
-                                    path,
-                                    p -> progress.accept((finalI * 100 + p) / droppedFiles.length)
-                            )
-                    );
-                    ContainerManager.saveContainer(containerPath, password, files);
+                    get();
                 } catch (Exception e) {
-                    throw new RuntimeException("Error adding file: " + e.getMessage());
+                    String errorMessage = "Operation failed: ";
+                    if (e.getCause() != null) {
+                        errorMessage += e.getCause().getMessage();
+                    } else {
+                        errorMessage += e.getMessage();
+                    }
+                    JOptionPane.showMessageDialog(null,
+                            errorMessage,
+                            "Error",
+                            JOptionPane.ERROR_MESSAGE
+                    );
                 }
             }
-        }, "Encrypting files...");
+        }.execute();
+        dialogComponents.dialog.setVisible(true);
     }
 
     private static void addFiles() {
@@ -298,30 +402,73 @@ public class BlackBox {
         if (chooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) return;
 
         File[] selectedFiles = chooser.getSelectedFiles();
-        showLoading(progress -> {
-            for (int i = 0; i < selectedFiles.length; i++) {
-                File file = selectedFiles[i];
+        LoadingDialogComponents dialogComponents = createLoadingDialog("Encrypting files...", true);
+        
+        new SwingWorker<Void, Integer>() {
+            private String currentFile = "";
+
+            @Override
+            protected Void doInBackground() throws Exception {
+                for (int i = 0; i < selectedFiles.length; i++) {
+                    File file = selectedFiles[i];
+                    currentFile = file.getName();
+                    SwingUtilities.invokeLater(() -> dialogComponents.visualizer.startAnimation(currentFile));
+                    
+                    try {
+                        Path path = file.toPath();
+                        int finalI = i;
+                        files.put(
+                                path.getFileName().toString(),
+                                new StoredFile(
+                                        path.getFileName().toString(),
+                                        Files.probeContentType(path) != null ?
+                                                Files.probeContentType(path) : "unknown",
+                                        path,
+                                        p -> {
+                                            int totalProgress = (finalI * 100 + p) / selectedFiles.length;
+                                            publish(totalProgress);
+                                            SwingUtilities.invokeLater(() -> dialogComponents.visualizer.updateProgress(p));
+                                        }
+                                )
+                        );
+                        ContainerManager.saveContainer(containerPath, password, files);
+                    } catch (Exception e) {
+                        throw new RuntimeException("Error adding file: " + e.getMessage());
+                    }
+                }
+                return null;
+            }
+
+            @Override
+            protected void process(List<Integer> chunks) {
+                int latestProgress = chunks.get(chunks.size() - 1);
+                dialogComponents.progressBar.setValue(latestProgress);
+            }
+
+            @Override
+            protected void done() {
+                if (dialogComponents.visualizer != null) {
+                    dialogComponents.visualizer.stopAnimation();
+                }
+                dialogComponents.dialog.dispose();
                 try {
-                    Path path = file.toPath();
-
-                    int finalI = i;
-                    files.put(
-                            path.getFileName().toString(),
-                            new StoredFile(
-                                    path.getFileName().toString(),
-                                    Files.probeContentType(path) != null ?
-                                            Files.probeContentType(path) : "unknown",
-                                    path,
-                                    p -> progress.accept((finalI * 100 + p) / selectedFiles.length)
-                            )
-                    );
-
-                    ContainerManager.saveContainer(containerPath, password, files);
+                    get();
                 } catch (Exception e) {
-                    throw new RuntimeException("Error adding file: " + e.getMessage());
+                    String errorMessage = "Operation failed: ";
+                    if (e.getCause() != null) {
+                        errorMessage += e.getCause().getMessage();
+                    } else {
+                        errorMessage += e.getMessage();
+                    }
+                    JOptionPane.showMessageDialog(null,
+                            errorMessage,
+                            "Error",
+                            JOptionPane.ERROR_MESSAGE
+                    );
                 }
             }
-        }, "Encrypting files...");
+        }.execute();
+        dialogComponents.dialog.setVisible(true);
     }
 
     private static void listFiles() {
@@ -365,25 +512,66 @@ public class BlackBox {
         chooser.setDialogTitle("Select save location");
         chooser.setSelectedFile(new File(fileList.get(index).getName()));
         if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
-            showLoading(progress -> {
-                try (InputStream in = fileList.get(index).getContentStream();
-                     OutputStream out = Files.newOutputStream(chooser.getSelectedFile().toPath())) {
+            LoadingDialogComponents dialogComponents = createLoadingDialog("Decrypting file...", true);
+            
+            new SwingWorker<Void, Integer>() {
+                @Override
+                protected Void doInBackground() throws Exception {
+                    try (InputStream in = fileList.get(index).getContentStream();
+                         OutputStream out = Files.newOutputStream(chooser.getSelectedFile().toPath())) {
 
-                    long fileSize = fileList.get(index).getTempFileSize();
-                    byte[] buffer = new byte[8192];
-                    int bytesRead;
-                    long totalRead = 0;
+                        String fileName = fileList.get(index).getName();
+                        SwingUtilities.invokeLater(() -> dialogComponents.visualizer.startAnimation(fileName));
 
-                    while ((bytesRead = in.read(buffer)) != -1) {
-                        out.write(buffer, 0, bytesRead);
-                        totalRead += bytesRead;
-                        int progressPercent = (int) ((totalRead * 100) / fileSize);
-                        progress.accept(progressPercent);
+                        long fileSize = fileList.get(index).getTempFileSize();
+                        byte[] buffer = new byte[8192];
+                        int bytesRead;
+                        long totalRead = 0;
+
+                        while ((bytesRead = in.read(buffer)) != -1) {
+                            out.write(buffer, 0, bytesRead);
+                            totalRead += bytesRead;
+                            int progressPercent = (int) ((totalRead * 100) / fileSize);
+                            final int progress = progressPercent;
+                            publish(progress);
+                            SwingUtilities.invokeLater(() -> dialogComponents.visualizer.updateProgress(progress));
+                        }
+                    } catch (IOException ex) {
+                        throw new RuntimeException("Extraction failed: " + ex.getMessage());
                     }
-                } catch (IOException ex) {
-                    throw new RuntimeException("Extraction failed: " + ex.getMessage());
+                    return null;
                 }
-            }, "Extracting file...");
+
+                @Override
+                protected void process(List<Integer> chunks) {
+                    int latestProgress = chunks.get(chunks.size() - 1);
+                    dialogComponents.progressBar.setValue(latestProgress);
+                }
+
+                @Override
+                protected void done() {
+                    if (dialogComponents.visualizer != null) {
+                        dialogComponents.visualizer.stopAnimation();
+                    }
+                    dialogComponents.dialog.dispose();
+                    try {
+                        get();
+                    } catch (Exception e) {
+                        String errorMessage = "Operation failed: ";
+                        if (e.getCause() != null) {
+                            errorMessage += e.getCause().getMessage();
+                        } else {
+                            errorMessage += e.getMessage();
+                        }
+                        JOptionPane.showMessageDialog(null,
+                                errorMessage,
+                                "Error",
+                                JOptionPane.ERROR_MESSAGE
+                        );
+                    }
+                }
+            }.execute();
+            dialogComponents.dialog.setVisible(true);
         }
     }
 
@@ -472,47 +660,29 @@ public class BlackBox {
         }, "Saving container...");
     }
 
-    private static JDialog createLoadingDialog(String message) {
-        JDialog dialog = new JDialog((Frame) null, "Processing", true);
-        
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-
-        JLabel label = new JLabel(message);
-        JProgressBar progressBar = new JProgressBar(0, 100);
-        progressBar.setStringPainted(true);
-
-        panel.add(label, BorderLayout.NORTH);
-        panel.add(progressBar, BorderLayout.CENTER);
-        dialog.add(panel);
-        dialog.setSize(300, 100);
-        dialog.setLocationRelativeTo(null);
-        return dialog;
-    }
-
     private static void showLoading(ProgressTask task, String message) {
-        JDialog loadingDialog = createLoadingDialog(message);
-        JProgressBar progressBar = (JProgressBar)
-                ((JPanel) loadingDialog.getContentPane().getComponent(0)).getComponent(1);
+        LoadingDialogComponents dialogComponents = createLoadingDialog(message);
 
         new SwingWorker<Void, Integer>() {
             @Override
             protected Void doInBackground() throws Exception {
-                task.run(this::publish);
+                task.run(progress -> {
+                    publish(progress);
+                });
                 return null;
             }
 
             @Override
             protected void process(List<Integer> chunks) {
                 int latestProgress = chunks.get(chunks.size() - 1);
-                progressBar.setValue(latestProgress);
+                dialogComponents.progressBar.setValue(latestProgress);
             }
 
             @Override
             protected void done() {
-                loadingDialog.dispose();
+                dialogComponents.dialog.dispose();
                 try {
-                    get(); // Check for exceptions
+                    get();
                 } catch (Exception e) {
                     String errorMessage = "Operation failed: ";
                     if (e.getCause() != null) {
@@ -520,7 +690,6 @@ public class BlackBox {
                     } else {
                         errorMessage += e.getMessage();
                     }
-
                     JOptionPane.showMessageDialog(null,
                             errorMessage,
                             "Error",
@@ -529,7 +698,7 @@ public class BlackBox {
                 }
             }
         }.execute();
-        loadingDialog.setVisible(true);
+        dialogComponents.dialog.setVisible(true);
     }
 
     interface ProgressTask {
