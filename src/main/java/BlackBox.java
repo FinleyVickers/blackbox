@@ -1,6 +1,9 @@
 import javax.swing.*;
 import java.awt.*;
 import java.awt.Desktop;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.UnsupportedFlavorException;
+import java.awt.dnd.*;
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
@@ -12,6 +15,10 @@ public class BlackBox {
     private static String containerPath;
     private static String password;
     private static JFrame activeContainerFrame; // Track the active container window
+    private static List<File> pendingFiles = new ArrayList<>(); // Track files waiting to be added
+    private static DefaultListModel<String> pendingListModel; // Model for the pending files list
+    private static JPanel dropPanel; // Make dropPanel accessible
+    private static JPanel confirmPanel; // Panel for confirmation button
 
     public static void main(String[] args) {
         setupLookAndFeel();
@@ -120,9 +127,105 @@ public class BlackBox {
         activeContainerFrame.setSize(500, 300);
         activeContainerFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
-        JPanel panel = new JPanel(new GridLayout(5, 1, 10, 10));
-        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
+        // Create drop target panel with card layout to switch between drop zone and file list
+        dropPanel = new JPanel(new CardLayout());
+        
+        // Create the initial drop zone
+        JPanel dropZone = new JPanel(new BorderLayout());
+        dropZone.setBorder(BorderFactory.createDashedBorder(Color.GRAY, 5, 5));
+        JLabel dropLabel = new JLabel("Drop files here", SwingConstants.CENTER);
+        dropLabel.setFont(new Font(dropLabel.getFont().getName(), Font.PLAIN, 16));
+        dropZone.add(dropLabel, BorderLayout.CENTER);
+
+        // Create the pending files list panel
+        JPanel listPanel = new JPanel(new BorderLayout());
+        pendingListModel = new DefaultListModel<>();
+        JList<String> pendingList = new JList<>(pendingListModel);
+        JScrollPane scrollPane = new JScrollPane(pendingList);
+        listPanel.add(scrollPane, BorderLayout.CENTER);
+
+        // Create confirmation panel
+        confirmPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        JButton confirmBtn = new JButton("Save Files to Container");
+        JButton cancelBtn = new JButton("Cancel");
+        confirmPanel.add(confirmBtn);
+        confirmPanel.add(cancelBtn);
+        confirmPanel.setVisible(false);
+        
+        // Add both panels to the card layout
+        dropPanel.add(dropZone, "DROP_ZONE");
+        dropPanel.add(listPanel, "FILE_LIST");
+
+        // Add drag and drop support to both panels
+        DropTargetAdapter dropAdapter = new DropTargetAdapter() {
+            @Override
+            public void dragOver(DropTargetDragEvent dtde) {
+                if (dtde.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
+                    dtde.acceptDrag(DnDConstants.ACTION_COPY);
+                    if (dropZone.isShowing()) {
+                        dropZone.setBorder(BorderFactory.createDashedBorder(Color.BLUE, 5, 5));
+                    }
+                } else {
+                    dtde.rejectDrag();
+                }
+            }
+
+            @Override
+            public void dragExit(DropTargetEvent dte) {
+                if (dropZone.isShowing()) {
+                    dropZone.setBorder(BorderFactory.createDashedBorder(Color.GRAY, 5, 5));
+                }
+            }
+
+            @Override
+            public void drop(DropTargetDropEvent dtde) {
+                try {
+                    dtde.acceptDrop(DnDConstants.ACTION_COPY);
+                    Object transferData = dtde.getTransferable().getTransferData(DataFlavor.javaFileListFlavor);
+                    if (transferData instanceof List<?> && ((List<?>) transferData).stream().allMatch(item -> item instanceof File)) {
+                        @SuppressWarnings("unchecked")
+                        List<File> droppedFiles = (List<File>) transferData;
+                        addToPendingFiles(droppedFiles);
+                        if (dropZone.isShowing()) {
+                            dropZone.setBorder(BorderFactory.createDashedBorder(Color.GRAY, 5, 5));
+                        }
+                    } else {
+                        throw new UnsupportedFlavorException(DataFlavor.javaFileListFlavor);
+                    }
+                } catch (Exception e) {
+                    dtde.rejectDrop();
+                    JOptionPane.showMessageDialog(activeContainerFrame,
+                            "Error processing dropped files: " + e.getMessage(),
+                            "Error",
+                            JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        };
+
+        new DropTarget(dropZone, dropAdapter);
+        new DropTarget(listPanel, dropAdapter);
+
+        // Add action listeners for confirm/cancel buttons
+        confirmBtn.addActionListener(e -> {
+            handleDroppedFiles(pendingFiles.toArray(new File[0]));
+            pendingFiles.clear();
+            pendingListModel.clear();
+            ((CardLayout)dropPanel.getLayout()).show(dropPanel, "DROP_ZONE");
+            confirmPanel.setVisible(false);
+        });
+
+        cancelBtn.addActionListener(e -> {
+            pendingFiles.clear();
+            pendingListModel.clear();
+            ((CardLayout)dropPanel.getLayout()).show(dropPanel, "DROP_ZONE");
+            confirmPanel.setVisible(false);
+        });
+
+        // Button panel
+        JPanel buttonPanel = new JPanel(new GridLayout(5, 1, 10, 10));
         JButton addBtn = new JButton("Add Files");
         JButton listBtn = new JButton("View Stored Files");
         JButton openBtn = new JButton("Open File");
@@ -135,15 +238,57 @@ public class BlackBox {
         extractBtn.addActionListener(e -> extractFile());
         saveBtn.addActionListener(e -> saveAndClose(activeContainerFrame));
 
-        panel.add(addBtn);
-        panel.add(listBtn);
-        panel.add(openBtn);
-        panel.add(extractBtn);
-        panel.add(saveBtn);
+        buttonPanel.add(addBtn);
+        buttonPanel.add(listBtn);
+        buttonPanel.add(openBtn);
+        buttonPanel.add(extractBtn);
+        buttonPanel.add(saveBtn);
 
-        activeContainerFrame.add(panel);
+        mainPanel.add(dropPanel, BorderLayout.CENTER);
+        mainPanel.add(buttonPanel, BorderLayout.EAST);
+        mainPanel.add(confirmPanel, BorderLayout.SOUTH);
+
+        activeContainerFrame.add(mainPanel);
         activeContainerFrame.setLocationRelativeTo(null);
         activeContainerFrame.setVisible(true);
+    }
+
+    private static void addToPendingFiles(List<File> newFiles) {
+        for (File file : newFiles) {
+            if (!pendingFiles.contains(file)) {
+                pendingFiles.add(file);
+                pendingListModel.addElement(file.getName());
+            }
+        }
+        if (!pendingFiles.isEmpty()) {
+            ((CardLayout)dropPanel.getLayout()).show(dropPanel, "FILE_LIST");
+            confirmPanel.setVisible(true);
+        }
+    }
+
+    private static void handleDroppedFiles(File[] droppedFiles) {
+        showLoading(progress -> {
+            for (int i = 0; i < droppedFiles.length; i++) {
+                File file = droppedFiles[i];
+                try {
+                    Path path = file.toPath();
+                    int finalI = i;
+                    files.put(
+                            path.getFileName().toString(),
+                            new StoredFile(
+                                    path.getFileName().toString(),
+                                    Files.probeContentType(path) != null ?
+                                            Files.probeContentType(path) : "unknown",
+                                    path,
+                                    p -> progress.accept((finalI * 100 + p) / droppedFiles.length)
+                            )
+                    );
+                    ContainerManager.saveContainer(containerPath, password, files);
+                } catch (Exception e) {
+                    throw new RuntimeException("Error adding file: " + e.getMessage());
+                }
+            }
+        }, "Encrypting files...");
     }
 
     private static void addFiles() {
