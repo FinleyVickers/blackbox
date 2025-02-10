@@ -1,5 +1,6 @@
 import javax.swing.*;
 import java.awt.*;
+import java.awt.Desktop;
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
@@ -119,21 +120,24 @@ public class BlackBox {
         activeContainerFrame.setSize(500, 300);
         activeContainerFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
-        JPanel panel = new JPanel(new GridLayout(4, 1, 10, 10));
+        JPanel panel = new JPanel(new GridLayout(5, 1, 10, 10));
         panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
         JButton addBtn = new JButton("Add Files");
         JButton listBtn = new JButton("View Stored Files");
+        JButton openBtn = new JButton("Open File");
         JButton extractBtn = new JButton("Extract File");
         JButton saveBtn = new JButton("Save and Close");
 
         addBtn.addActionListener(e -> addFiles());
         listBtn.addActionListener(e -> listFiles());
+        openBtn.addActionListener(e -> openFile());
         extractBtn.addActionListener(e -> extractFile());
         saveBtn.addActionListener(e -> saveAndClose(activeContainerFrame));
 
         panel.add(addBtn);
         panel.add(listBtn);
+        panel.add(openBtn);
         panel.add(extractBtn);
         panel.add(saveBtn);
 
@@ -236,6 +240,67 @@ public class BlackBox {
                 }
             }, "Extracting file...");
         }
+    }
+
+    private static void openFile() {
+        List<StoredFile> fileList = new ArrayList<>(files.values());
+        if (fileList.isEmpty()) {
+            JOptionPane.showMessageDialog(null, "No files in container");
+            return;
+        }
+
+        String[] options = fileList.stream()
+                .map(f -> f.getName() + " (" + f.getType() + ")")
+                .toArray(String[]::new);
+
+        String selection = (String) JOptionPane.showInputDialog(
+                null, "Select file to open:", "Open File",
+                JOptionPane.PLAIN_MESSAGE, null, options, options[0]
+        );
+
+        if (selection == null) return;
+        int index = Arrays.asList(options).indexOf(selection);
+
+        showLoading(progress -> {
+            try {
+                // Create a temporary file with the original file extension
+                String fileName = fileList.get(index).getName();
+                String extension = fileName.contains(".") ? fileName.substring(fileName.lastIndexOf(".")) : "";
+                Path tempFile = Files.createTempFile("blackbox_preview_", extension);
+                tempFile.toFile().deleteOnExit(); // Ensure cleanup on JVM exit
+
+                // Extract the file content to the temp file
+                try (InputStream in = fileList.get(index).getContentStream();
+                     OutputStream out = Files.newOutputStream(tempFile)) {
+
+                    long fileSize = fileList.get(index).getTempFileSize();
+                    byte[] buffer = new byte[8192];
+                    int bytesRead;
+                    long totalRead = 0;
+
+                    while ((bytesRead = in.read(buffer)) != -1) {
+                        out.write(buffer, 0, bytesRead);
+                        totalRead += bytesRead;
+                        int progressPercent = (int) ((totalRead * 100) / fileSize);
+                        progress.accept(progressPercent);
+                    }
+                }
+
+                // Open the file with the system's default application
+                SwingUtilities.invokeLater(() -> {
+                    try {
+                        Desktop.getDesktop().open(tempFile.toFile());
+                    } catch (IOException ex) {
+                        JOptionPane.showMessageDialog(null,
+                                "Could not open file: " + ex.getMessage(),
+                                "Error",
+                                JOptionPane.ERROR_MESSAGE);
+                    }
+                });
+            } catch (IOException ex) {
+                throw new RuntimeException("Failed to open file: " + ex.getMessage());
+            }
+        }, "Opening file...");
     }
 
     private static void saveAndClose(JFrame containerFrame) {
