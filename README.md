@@ -39,6 +39,14 @@ A secure desktop application with GTK-based GUI for creating encrypted file cont
       - Working directory: Project root
    5. Build and run using green arrow (▶️) in toolbar
 
+## Screenshots
+![exported_image (3)](https://github.com/user-attachments/assets/0e62df3f-b9d1-499d-9a76-9c933064dfcd)
+![exported_image](https://github.com/user-attachments/assets/8182f684-461f-4b52-9c50-a4a7485026ab)
+![exported_image (1)](https://github.com/user-attachments/assets/7c721e68-f32f-406e-879f-9b6b6f191094)
+![exported_image (2)](https://github.com/user-attachments/assets/531c2fb2-f198-4909-a35c-24b9aabd1d94)
+
+
+
 ## Usage 📖
 
 ### 1. Create a New Container
