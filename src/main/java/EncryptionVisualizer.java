@@ -12,7 +12,6 @@ public class EncryptionVisualizer extends JPanel {
     private final Random random = new Random();
     private int progress = 0;
     private String currentFileName = "";
-    private int lastBitCount = 0;
 
     public EncryptionVisualizer() {
         setPreferredSize(new Dimension(COLS * BIT_SIZE, ROWS * BIT_SIZE + 30));
@@ -23,7 +22,6 @@ public class EncryptionVisualizer extends JPanel {
         currentFileName = fileName;
         encryptedBits.clear();
         progress = 0;
-        lastBitCount = 0;
         repaint();
     }
 
@@ -39,7 +37,6 @@ public class EncryptionVisualizer extends JPanel {
                 newBit = new Point(random.nextInt(COLS), random.nextInt(ROWS));
             } while (encryptedBits.contains(newBit));
             encryptedBits.add(newBit);
-            lastBitCount = encryptedBits.size();
         }
         
         repaint();
